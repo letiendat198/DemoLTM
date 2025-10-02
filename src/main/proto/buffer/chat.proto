@@ -5,12 +5,28 @@ package buffer;
 option java_multiple_files = true;
 option java_package = "com.grpc.models.buffer";
 
+enum MESSAGE_TYPE {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_UNICAST = 1;
+  MESSAGE_TYPE_BROADCAST = 2;
+  MESSAGE_TYPE_STATUS = 3;
+}
+
 message ChatMessage {
-  string user = 1;
-  string message = 2;
-  int64 timestamp = 3;
+  string sourceUUID = 1;
+  string targetUUID = 2;
+  MESSAGE_TYPE type = 3;
+  string message = 4;
+  int64 timestamp = 5;
+}
+
+message ClientSpec {
+  string uuid = 1;
+  string username = 2;
+  string color = 3;
 }
 
 service ChatService {
-  rpc chat(stream ChatMessage) returns (stream ChatMessage);
+  rpc chat(stream ChatMessage) returns (stream ChatMessage) {}
+  rpc register(ClientSpec) returns (stream ClientSpec) {}
 }

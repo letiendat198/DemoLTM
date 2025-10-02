@@ -1,6 +1,7 @@
-package com.grpc.sec01;
+package com.grpc.client;
 
 import com.grpc.models.buffer.ChatMessage;
+import com.grpc.models.buffer.ChatServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -16,12 +17,12 @@ public class GrpcChatClient {
                 .usePlaintext()
                 .build();
 
-        com.grpc.models.buffer.ChatServiceGrpc.ChatServiceStub stub = com.grpc.models.buffer.ChatServiceGrpc.newStub(channel);
+        ChatServiceGrpc.ChatServiceStub stub = ChatServiceGrpc.newStub(channel);
 
-        StreamObserver<com.grpc.models.buffer.ChatMessage> requestObserver = stub.chat(new StreamObserver<ChatMessage>() {
+        StreamObserver<ChatMessage> requestObserver = stub.chat(new StreamObserver<ChatMessage>() {
             @Override
             public void onNext(ChatMessage value) {
-                System.out.println(value.getUser() + ": " + value.getMessage());
+                System.out.println(value.getSourceUUID() + ": " + value.getMessage());
             }
 
             @Override
@@ -47,7 +48,6 @@ public class GrpcChatClient {
                 break;
             }
             ChatMessage chatMessage = ChatMessage.newBuilder()
-                    .setUser(user)
                     .setMessage(msg)
                     .setTimestamp(Instant.now().getEpochSecond())
                     .build();
