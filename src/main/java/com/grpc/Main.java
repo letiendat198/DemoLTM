@@ -10,7 +10,7 @@ import java.net.UnknownHostException;
 public class Main {
     public static void main(String[] args) {
         JFrame frmMain = new ChatFrm();
-        frmMain.setSize(new Dimension(600, 400));
+        frmMain.setSize(new Dimension(800, 600));
         frmMain.setLocationRelativeTo(null);
         frmMain.setVisible(true);
     }

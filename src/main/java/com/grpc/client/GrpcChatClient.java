@@ -11,7 +11,8 @@ import java.util.UUID;
 
 //mvn exec:java -Dexec.mainClass="com.grpc.sec01.GrpcChatClient"
 public class GrpcChatClient {
-    StreamObserver<ChatMessage> requestObserver;
+    StreamObserver<ChatMessage> chatRequestObserver;
+    StreamObserver<ClientSpec> specResponseObserver;
     ManagedChannel channel;
     ChatServiceGrpc.ChatServiceStub stub;
 
@@ -28,7 +29,7 @@ public class GrpcChatClient {
 
         stub = ChatServiceGrpc.newStub(channel);
 
-        requestObserver = stub.chat(new StreamObserver<ChatMessage>() {
+        chatRequestObserver = stub.chat(new StreamObserver<ChatMessage>() {
             @Override
             public void onNext(ChatMessage value) {
                 try {
@@ -41,7 +42,7 @@ public class GrpcChatClient {
 
             @Override
             public void onError(Throwable t) {
-                System.err.println("Error: " + t.getMessage());
+                System.err.println("Char error: " + t.getMessage());
             }
 
             @Override
@@ -60,36 +61,47 @@ public class GrpcChatClient {
                 .setColor(color).build();
         thisClient = spec;
 
-        StreamObserver<ClientSpec> responseObserver = new StreamObserver<ClientSpec>() {
+        specResponseObserver = new StreamObserver<ClientSpec>() {
             boolean success = true;
             Map<String, ClientSpec> targetMap = new HashMap<>();
             @Override
             public void onNext(ClientSpec clientSpec) {
-                targetMap.put(clientSpec.getUuid(), clientSpec);
+                // ALWAYS CATCH ERROR IN ON NEXT OTHERWISE THIS MFK OF A LIBRARY WILL SWALLOW THE FUCKING ERROR
+                // AND GIVE A RANDOM ASS ERROR AND WASTE 1HR OF YOUR LIFE
+                try {
+                    if (clientSpec.getUuid().equals("-1")) {
+                        handler.onRegisterComplete(success, targetMap);
+                    }
+                    else targetMap.put(clientSpec.getUuid(), clientSpec);
+                }
+                catch (Exception e) {
+                    System.out.println("Register onNext exception:" + e.getMessage());
+                }
             }
 
             @Override
             public void onError(Throwable throwable) {
+                System.err.println(throwable.getMessage());
                 success = false;
-                onCompleted();
+                handler.onRegisterComplete(success, targetMap);
             }
 
             @Override
             public void onCompleted() {
-                handler.onRegisterComplete(success, targetMap);
+
             }
         };
-        stub.register(spec, responseObserver);
+        stub.register(spec, specResponseObserver);
 
         ChatMessage initMsg = ChatMessage.newBuilder()
                 .setSourceUUID(thisClient.getUuid())
                 .setType(MESSAGE_TYPE.MESSAGE_TYPE_INIT)
                 .build();
-        requestObserver.onNext(initMsg);
+        chatRequestObserver.onNext(initMsg);
     }
 
     public void sendMessage(ChatMessage msg) {
-        requestObserver.onNext(msg);
+        chatRequestObserver.onNext(msg);
     }
 
     public void stop() {

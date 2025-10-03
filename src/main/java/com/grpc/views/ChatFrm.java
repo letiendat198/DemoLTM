@@ -10,8 +10,11 @@ import net.miginfocom.swing.MigLayout;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.ItemEvent;
 import java.net.InetAddress;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public class ChatFrm extends JFrame implements IClientHandler {
@@ -19,6 +22,7 @@ public class ChatFrm extends JFrame implements IClientHandler {
     JPanel pnlChat;
     JTextField txtMsg;
     JLabel lblStatus;
+    JComboBox<String> cmbTarget;
     GrpcChatClient client;
 
     Map<String, ClientSpec> targetMap;
@@ -36,18 +40,32 @@ public class ChatFrm extends JFrame implements IClientHandler {
         lblStatus = new JLabel("<html>Status: <font color='#B8860B'>Connecting to server...</font></html>");
         pnlMain.add(lblStatus);
         JButton btnReload = new JButton("Reload");
+        btnReload.addActionListener(e -> {
+            setStatus("Connecting to server...", "#B8860B");
+            client.register(client.thisClient.getUsername(), client.thisClient.getColor());
+        });
         JButton btnChangeUsername = new JButton("Change username");
         pnlMain.add(btnReload, "right");
         pnlMain.add(btnChangeUsername, "wrap");
 
-        JComboBox cmbTarget = new JComboBox(new String[]{"All targets (Broadcast)"});
+        cmbTarget = new JComboBox<>();
+        cmbTarget.addItemListener(e -> { // ActionListener will be fired for all changes, including add or remove
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                String selected = (String) cmbTarget.getModel().getSelectedItem();
+                String uuid = selected.substring(selected.indexOf("(") + 1, selected.indexOf(")"));
+                if (!uuid.equalsIgnoreCase("Broadcast")) target = targetMap.get(uuid);
+                else target = null;
+            }
+        });
         pnlMain.add(new JLabel("Target:"), "split 2");
         pnlMain.add(cmbTarget, "grow, pushx, span 2, wrap");
+
 
         pnlChat = new JPanel(new MigLayout("fillx"));
         pnlChat.setBackground(Color.WHITE);
         pnlChat.setBorder(BorderFactory.createLineBorder(Color.BLACK));
-        pnlMain.add(pnlChat, "grow, push, span, wrap");
+        JScrollPane scrollPane = new JScrollPane(pnlChat);
+        pnlMain.add(scrollPane, "grow, push, span, wrap");
 
         txtMsg = new JTextField();
         JButton btnSend = new JButton("Send");
@@ -84,8 +102,14 @@ public class ChatFrm extends JFrame implements IClientHandler {
         lblStatus.setText(String.format("<html>Status: <font color='%s'>%s</font></html>", color, status));
     }
 
-    public void setTargetComboBox() {
+    public void updateTargetComboBox() {
+        cmbTarget.removeAllItems();
+        cmbTarget.addItem("All targets (Broadcast)");
+        for (String key: targetMap.keySet()) {
+            String username = targetMap.get(key).getUsername();
 
+            cmbTarget.addItem(username + " (" + key + ")");
+        }
     }
 
     private void sendOnClick(ActionEvent e) {
@@ -122,6 +146,7 @@ public class ChatFrm extends JFrame implements IClientHandler {
         if (success) {
             setStatus("Connected", "green");
             this.targetMap = targetMap;
+            updateTargetComboBox();
         }
         else {
             setStatus("Client initialization failed or server not found!", "red");
