@@ -1,28 +1,42 @@
 package com.grpc.client;
 
-import com.grpc.models.buffer.ChatMessage;
-import com.grpc.models.buffer.ChatServiceGrpc;
+import com.grpc.models.buffer.*;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 
-import java.time.Instant;
-import java.util.Scanner;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 //mvn exec:java -Dexec.mainClass="com.grpc.sec01.GrpcChatClient"
 public class GrpcChatClient {
+    StreamObserver<ChatMessage> requestObserver;
+    ManagedChannel channel;
+    ChatServiceGrpc.ChatServiceStub stub;
 
-    public static void main(String[] args) {
-        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", 6565)
+    IClientHandler handler;
+    public String uuid;
+    public ClientSpec thisClient;
+
+    public GrpcChatClient() {
+        uuid = UUID.randomUUID().toString();
+
+        channel = ManagedChannelBuilder.forAddress("localhost", 6565)
                 .usePlaintext()
                 .build();
 
-        ChatServiceGrpc.ChatServiceStub stub = ChatServiceGrpc.newStub(channel);
+        stub = ChatServiceGrpc.newStub(channel);
 
-        StreamObserver<ChatMessage> requestObserver = stub.chat(new StreamObserver<ChatMessage>() {
+        requestObserver = stub.chat(new StreamObserver<ChatMessage>() {
             @Override
             public void onNext(ChatMessage value) {
-                System.out.println(value.getSourceUUID() + ": " + value.getMessage());
+                try {
+                    if (handler != null) handler.onMessage(value);
+                }
+                catch (Exception e){
+                    System.err.println(e.getMessage());
+                }
             }
 
             @Override
@@ -35,25 +49,54 @@ public class GrpcChatClient {
                 System.out.println("Chat ended.");
             }
         });
+    }
 
-        Scanner scanner = new Scanner(System.in);
-        System.out.print("Enter your name: ");
-        String user = scanner.nextLine();
+    // Register tell the server this machine preferred username and color
+    // so that the other client can correctly display
+    public void register(String username, String color) {
+        ClientSpec spec = ClientSpec.newBuilder()
+                .setUuid(uuid)
+                .setUsername(username)
+                .setColor(color).build();
+        thisClient = spec;
 
-        System.out.println("Type your message (type 'exit' to quit):");
-        while (true) {
-            String msg = scanner.nextLine();
-            if ("exit".equalsIgnoreCase(msg)) {
-                requestObserver.onCompleted();
-                break;
+        StreamObserver<ClientSpec> responseObserver = new StreamObserver<ClientSpec>() {
+            boolean success = true;
+            Map<String, ClientSpec> targetMap = new HashMap<>();
+            @Override
+            public void onNext(ClientSpec clientSpec) {
+                targetMap.put(clientSpec.getUuid(), clientSpec);
             }
-            ChatMessage chatMessage = ChatMessage.newBuilder()
-                    .setMessage(msg)
-                    .setTimestamp(Instant.now().getEpochSecond())
-                    .build();
-            requestObserver.onNext(chatMessage);
-        }
 
+            @Override
+            public void onError(Throwable throwable) {
+                success = false;
+                onCompleted();
+            }
+
+            @Override
+            public void onCompleted() {
+                handler.onRegisterComplete(success, targetMap);
+            }
+        };
+        stub.register(spec, responseObserver);
+
+        ChatMessage initMsg = ChatMessage.newBuilder()
+                .setSourceUUID(thisClient.getUuid())
+                .setType(MESSAGE_TYPE.MESSAGE_TYPE_INIT)
+                .build();
+        requestObserver.onNext(initMsg);
+    }
+
+    public void sendMessage(ChatMessage msg) {
+        requestObserver.onNext(msg);
+    }
+
+    public void stop() {
         channel.shutdown();
+    }
+
+    public void setHandler(IClientHandler handler) {
+        this.handler = handler;
     }
 }
