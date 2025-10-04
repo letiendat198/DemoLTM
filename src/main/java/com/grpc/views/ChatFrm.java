@@ -37,13 +37,10 @@ public class ChatFrm extends JFrame implements IClientHandler {
         pnlMain = new JPanel(new MigLayout("fillx"));
         pnlMain.add(new JLabel("LTM gRPC Demo"), "align center, span, wrap");
 
-        lblStatus = new JLabel("<html>Status: <font color='#B8860B'>Connecting to server...</font></html>");
+        lblStatus = new JLabel();
         pnlMain.add(lblStatus);
         JButton btnReload = new JButton("Reload");
-        btnReload.addActionListener(e -> {
-            setStatus("Connecting to server...", "#B8860B");
-            client.register(client.thisClient.getUsername(), client.thisClient.getColor());
-        });
+        btnReload.addActionListener(e -> initClient());
         JButton btnChangeUsername = new JButton("Change username");
         pnlMain.add(btnReload, "right");
         pnlMain.add(btnChangeUsername, "wrap");
@@ -82,6 +79,7 @@ public class ChatFrm extends JFrame implements IClientHandler {
 
     void initClient() {
         try {
+            setStatus("Connecting to server...", "#B8860B");
             client = new GrpcChatClient();
             client.setHandler(this);
             // Default register value: PC name + blue

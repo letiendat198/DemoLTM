@@ -17,12 +17,10 @@ public class GrpcChatClient {
     ChatServiceGrpc.ChatServiceStub stub;
 
     IClientHandler handler;
-    public String uuid;
+    static public String uuid = UUID.randomUUID().toString();;
     public ClientSpec thisClient;
 
     public GrpcChatClient() {
-        uuid = UUID.randomUUID().toString();
-
         channel = ManagedChannelBuilder.forAddress("localhost", 6565)
                 .usePlaintext()
                 .build();
@@ -54,6 +52,7 @@ public class GrpcChatClient {
 
     // Register tell the server this machine preferred username and color
     // so that the other client can correctly display
+    // TODO: Register won't re-initate a failed chat stub. Just re-construct this class and persist the uuid
     public void register(String username, String color) {
         ClientSpec spec = ClientSpec.newBuilder()
                 .setUuid(uuid)
@@ -70,6 +69,7 @@ public class GrpcChatClient {
                 // AND GIVE A RANDOM ASS ERROR AND WASTE 1HR OF YOUR LIFE
                 try {
                     if (clientSpec.getUuid().equals("-1")) {
+                        System.out.println("New target found! Updating");
                         handler.onRegisterComplete(success, targetMap);
                     }
                     else targetMap.put(clientSpec.getUuid(), clientSpec);

@@ -35,7 +35,9 @@ public class ChatServiceImpl extends ChatServiceGrpc.ChatServiceImplBase {
                     }
                     case MESSAGE_TYPE_UNICAST -> {
                         try {
-                            streamMap.get(chatMessage.getTargetUUID()).onNext(chatMessage);
+                            if (streamMap.containsKey(chatMessage.getTargetUUID()))
+                                streamMap.get(chatMessage.getTargetUUID()).onNext(chatMessage);
+                            else log.error("Target not found in cache: {}", chatMessage.getTargetUUID());
                         }
                         // Can't reach target, stream already closed
                         catch (StatusRuntimeException sre) {
@@ -83,26 +85,33 @@ public class ChatServiceImpl extends ChatServiceGrpc.ChatServiceImplBase {
     @Override
     public void register(ClientSpec request, StreamObserver<ClientSpec> responseObserver) {
         log.info("Client register");
-
-        clientMap.put(request.getUuid(), request);
-
-        for (String key: clientMap.keySet()) {
-            if (!Objects.equals(key, request.getUuid())) responseObserver.onNext(clientMap.get(key));
-        }
         ClientSpec doneSignal = ClientSpec.newBuilder()
                 .setUuid("-1")
                 .build();
-        responseObserver.onNext(doneSignal);
-        for(StreamObserver<ClientSpec> obs: clientStreamList) {
-            try {
-                obs.onNext(request);
-                obs.onNext(doneSignal);
-            }
-            catch (StatusRuntimeException sre) {
-                log.error("Can't inform new targets because stream closed");
-            }
+
+        // Inform the request of all targets. Skip if same uuid in case of re-register
+        for (String key: clientMap.keySet()) {
+            if (!request.getUuid().equals(key)) responseObserver.onNext(clientMap.get(key));
         }
-        if (!clientMap.containsKey(request.getUuid()))
+        responseObserver.onNext(doneSignal);
+
+        // If new target then inform everyone of new target
+        if (!clientMap.containsKey(request.getUuid())) {
+            // Inform all existing stream of new target, using the request data
+            for(StreamObserver<ClientSpec> obs: clientStreamList) {
+                try {
+                    obs.onNext(request);
+                    obs.onNext(doneSignal);
+                }
+                catch (StatusRuntimeException sre) {
+                    log.error("Can't inform new targets because stream closed");
+                }
+            }
+            // Add new target to observer list
             clientStreamList.add(responseObserver);
+        }
+
+        // Write back new data to client map and stream list
+        clientMap.put(request.getUuid(), request);
     }
 }
