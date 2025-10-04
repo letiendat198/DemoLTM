@@ -93,11 +93,16 @@ public class GrpcChatClient {
         };
         stub.register(spec, specResponseObserver);
 
-        ChatMessage initMsg = ChatMessage.newBuilder()
-                .setSourceUUID(thisClient.getUuid())
-                .setType(MESSAGE_TYPE.MESSAGE_TYPE_INIT)
-                .build();
-        chatRequestObserver.onNext(initMsg);
+        try {
+            ChatMessage initMsg = ChatMessage.newBuilder()
+                    .setSourceUUID(thisClient.getUuid())
+                    .setType(MESSAGE_TYPE.MESSAGE_TYPE_INIT)
+                    .build();
+            chatRequestObserver.onNext(initMsg);
+        }
+        catch (Exception e) {
+            System.err.println("Sending init message failed with exception: " + e.getMessage());
+        }
     }
 
     public void sendMessage(ChatMessage msg) {

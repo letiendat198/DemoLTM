@@ -4,6 +4,7 @@ import com.grpc.models.buffer.ChatMessage;
 import com.grpc.models.buffer.ClientSpec;
 import com.grpc.models.buffer.ChatServiceGrpc;
 import com.grpc.models.buffer.MESSAGE_TYPE;
+import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import org.checkerframework.checker.units.qual.C;
@@ -22,6 +23,8 @@ public class ChatServiceImpl extends ChatServiceGrpc.ChatServiceImplBase {
     Map<String, ClientSpec> clientMap = new HashMap<>();
     List<StreamObserver<ClientSpec>> clientStreamList = new ArrayList<>();
 
+    // Mysterious null pointer bug is probably because a client trying to send Unicast
+    // to a target that wasn't init-ed, thus not found in streamMap
     @Override
     public StreamObserver<ChatMessage> chat(StreamObserver<ChatMessage> responseObserver) {
         return new StreamObserver<ChatMessage>() {
@@ -37,7 +40,10 @@ public class ChatServiceImpl extends ChatServiceGrpc.ChatServiceImplBase {
                         try {
                             if (streamMap.containsKey(chatMessage.getTargetUUID()))
                                 streamMap.get(chatMessage.getTargetUUID()).onNext(chatMessage);
-                            else log.error("Target not found in cache: {}", chatMessage.getTargetUUID());
+                            else {
+                                log.error("Target not found in cache: {}. Probably not initiated", chatMessage.getTargetUUID());
+                                throw new StatusRuntimeException(Status.CANCELLED);
+                            }
                         }
                         // Can't reach target, stream already closed
                         catch (StatusRuntimeException sre) {
