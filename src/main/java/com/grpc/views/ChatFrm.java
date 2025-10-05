@@ -11,13 +11,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ItemEvent;
-import java.net.InetAddress;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
-public class ChatFrm extends JFrame implements IClientHandler {
+public class ChatFrm extends JFrame implements IClientHandler, ISpecChangeHandler {
     JPanel pnlMain;
     JPanel pnlChat;
     JTextField txtMsg;
@@ -40,10 +37,16 @@ public class ChatFrm extends JFrame implements IClientHandler {
         lblStatus = new JLabel();
         pnlMain.add(lblStatus);
         JButton btnReload = new JButton("Reload");
+        // To reload, just re-init the client
         btnReload.addActionListener(e -> initClient());
-        JButton btnChangeUsername = new JButton("Change username");
+        JButton btnChangeSpec = new JButton("Change spec");
+        // To change spec, edit the static variables and call init
+        btnChangeSpec.addActionListener(e -> {
+            JFrame changeFrm = new ChangeSpecFrm(this);
+            changeFrm.setVisible(true);
+        });
         pnlMain.add(btnReload, "right");
-        pnlMain.add(btnChangeUsername, "wrap");
+        pnlMain.add(btnChangeSpec, "wrap");
 
         cmbTarget = new JComboBox<>();
         cmbTarget.addItemListener(e -> { // ActionListener will be fired for all changes, including add or remove
@@ -82,8 +85,7 @@ public class ChatFrm extends JFrame implements IClientHandler {
             setStatus("Connecting to server...", "#B8860B");
             client = new GrpcChatClient();
             client.setHandler(this);
-            // Default register value: PC name + blue
-            client.register(InetAddress.getLocalHost().getHostName(), "blue");
+            client.register();
         }
         catch (Exception e) {
             System.out.println(e);
@@ -114,7 +116,7 @@ public class ChatFrm extends JFrame implements IClientHandler {
         addMessage(client.thisClient.getUsername(), txtMsg.getText(), client.thisClient.getColor());
 
         ChatMessage msg = ChatMessage.newBuilder()
-                .setSourceUUID(client.uuid)
+                .setSourceUUID(client.thisClient.getUuid())
                 .setTargetUUID(target == null ? "" : target.getUuid())
                 .setMessage(txtMsg.getText())
                 .setType(target == null ? MESSAGE_TYPE.MESSAGE_TYPE_BROADCAST : MESSAGE_TYPE.MESSAGE_TYPE_UNICAST)
@@ -149,5 +151,10 @@ public class ChatFrm extends JFrame implements IClientHandler {
         else {
             setStatus("Client initialization failed or server not found!", "red");
         }
+    }
+
+    @Override
+    public void onSpecChange() {
+        initClient();
     }
 }

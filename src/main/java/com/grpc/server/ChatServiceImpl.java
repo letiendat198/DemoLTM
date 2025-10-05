@@ -21,7 +21,7 @@ public class ChatServiceImpl extends ChatServiceGrpc.ChatServiceImplBase {
 
     // Register (Client info) stream related
     Map<String, ClientSpec> clientMap = new HashMap<>();
-    List<StreamObserver<ClientSpec>> clientStreamList = new ArrayList<>();
+    Map<String, StreamObserver<ClientSpec>> clientStreamMap = new HashMap<>();
 
     // Mysterious null pointer bug is probably because a client trying to send Unicast
     // to a target that wasn't init-ed, thus not found in streamMap
@@ -101,21 +101,23 @@ public class ChatServiceImpl extends ChatServiceGrpc.ChatServiceImplBase {
         }
         responseObserver.onNext(doneSignal);
 
-        // If new target then inform everyone of new target
-        if (!clientMap.containsKey(request.getUuid())) {
-            // Inform all existing stream of new target, using the request data
-            for(StreamObserver<ClientSpec> obs: clientStreamList) {
-                try {
-                    obs.onNext(request);
-                    obs.onNext(doneSignal);
+
+        // Inform all existing stream of new target, using the request data
+        for(String key: clientStreamMap.keySet()) {
+            try {
+                // Skip the requester so it doesn't get it's own info
+                if (!key.equals(request.getUuid())) {
+                    clientStreamMap.get(key).onNext(request);
+                    clientStreamMap.get(key).onNext(doneSignal);
                 }
-                catch (StatusRuntimeException sre) {
-                    log.error("Can't inform new targets because stream closed");
-                }
+
             }
-            // Add new target to observer list
-            clientStreamList.add(responseObserver);
+            catch (StatusRuntimeException sre) {
+                log.error("Can't inform new targets because stream closed");
+            }
         }
+        // Add new target to observer list
+        clientStreamMap.put(request.getUuid(), responseObserver);
 
         // Write back new data to client map and stream list
         clientMap.put(request.getUuid(), request);

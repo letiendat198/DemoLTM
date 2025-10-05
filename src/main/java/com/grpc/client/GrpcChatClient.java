@@ -5,6 +5,8 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -17,10 +19,15 @@ public class GrpcChatClient {
     ChatServiceGrpc.ChatServiceStub stub;
 
     IClientHandler handler;
-    static public String uuid = UUID.randomUUID().toString();;
+    static String uuid = UUID.randomUUID().toString();;
+    static String username = null;
+    static String color = null;
     public ClientSpec thisClient;
 
-    public GrpcChatClient() {
+    public GrpcChatClient() throws UnknownHostException {
+        if (username == null) username = InetAddress.getLocalHost().getHostName();
+        if (color == null) color = "blue";
+
         channel = ManagedChannelBuilder.forAddress("localhost", 6565)
                 .usePlaintext()
                 .build();
@@ -53,7 +60,7 @@ public class GrpcChatClient {
     // Register tell the server this machine preferred username and color
     // so that the other client can correctly display
     // TODO: Register won't re-initate a failed chat stub. Just re-construct this class and persist the uuid
-    public void register(String username, String color) {
+    public void register() {
         ClientSpec spec = ClientSpec.newBuilder()
                 .setUuid(uuid)
                 .setUsername(username)
@@ -115,5 +122,21 @@ public class GrpcChatClient {
 
     public void setHandler(IClientHandler handler) {
         this.handler = handler;
+    }
+
+    public static void setUsername(String username) {
+        GrpcChatClient.username = username;
+    }
+
+    public static void setColor(String color) {
+        GrpcChatClient.color = color;
+    }
+
+    public static String getUsername() {
+        return username;
+    }
+
+    public static String getColor() {
+        return color;
     }
 }
